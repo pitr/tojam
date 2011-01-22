@@ -1,13 +1,16 @@
 var http  = require('http');
 var sys   = require('sys');
+var fs    = require('fs');
 
 // Connected clients of type {url1: [client1, client2], url2: [client1, client5]}
 var clients = {};
 
+var log = fs.createWriteStream('log');
+
 http.createServer(function (request, response){
 
   request.on('data', function(chunk){
-    console.log('Got data on '+request.url+', pushing to clients!');
+    log.write('Got data on '+request.url+', pushing to clients!');
     for (client in clients[request.url]) {
       clients[request.url][client].write(chunk);
     }
@@ -27,14 +30,13 @@ http.createServer(function (request, response){
 
   // Add the response to the clients array to receive streaming
   if (clients[request.url] == undefined) {
-    console.log('#1 Client connected to '+ request.url +'; streaming');
+    log.write('#1 Client connected to '+ request.url +'; streaming');
     clients[request.url] = [response];
   } else {
-    console.log('#'+(clients[request.url].length+1)+' Client connected to '+ request.url +'; streaming');
-    console.log('Result: ' + sys.inspect(clients))
+    log.write('#'+(clients[request.url].length+1)+' Client connected to '+ request.url +'; streaming');
+    log.write('Result: ' + sys.inspect(clients))
     clients[request.url].push(response);
   }
-  response.setEncoding('utf8');
   response.writeHead(200,{
     "Content-Type": "audio/mpeg",
     // "Content-Type": "html/text",
