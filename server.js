@@ -34,7 +34,7 @@ http.createServer(function (request, response){
     console.log('Result: ' + sys.inspect(clients))
     clients[request.url].push(response);
   }
-
+  response.setEncoding('utf8');
   response.writeHead(200,{
     "Content-Type": "audio/mpeg",
     // "Content-Type": "html/text",
