@@ -20,7 +20,7 @@ State.ADULT  = 3
 State.OLD    = 4
 State.DEAD   = 5
 
-io.setPath('/js/socket/')
+window.WEB_SOCKET_SWF_LOCATION = '/js/socket/lib/vendor/web-socket-js/WebSocketMain.swf'
 
 socket = new io.Socket('me', port: 8080)
 
