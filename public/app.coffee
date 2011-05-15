@@ -36,7 +36,7 @@ playerAttr = (attr) ->
   walk: ->
     animation = "#{@state}_walk"
     @stop().animate(animation, @state.animation()) unless @isPlaying(animation)
-    send(command: 'move', x: @x, y: @y, rotation: @rotation) if attr.local?
+    sendThrottled(command: 'move', x: @x, y: @y, rotation: @rotation) if attr.local?
   cooldown: false
   rotation: attr.rotation or 0
   grow_timer: if attr.local? then $.every(20, "seconds", ->
@@ -54,6 +54,7 @@ playerAttr = (attr) ->
 send = (data) ->
   console.log "send: #{data.command}, #{data.x}, #{data.y}, #{data.rotation}, #{data.state}"
   socket.send(data)
+sendThrottled = _.throttle(40, send)
 
 if socket.connect()
   window.Remote_players = remote_players = {}
