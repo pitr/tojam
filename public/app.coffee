@@ -1,3 +1,6 @@
+window.DEBUG = off
+window.log = (msg) -> console.log(msg) if DEBUG
+
 class State
   constructor: (@state = State.BABY) ->
   next: (new_state) -> @state = new_state or Math.min(++@state, State.DEAD)
@@ -52,14 +55,14 @@ playerAttr = (attr) ->
     @
 
 send = (data) ->
-  console.log "send: #{data.command}, #{data.x}, #{data.y}, #{data.rotation}, #{data.state}"
+  log "send: #{data.command}, #{data.x}, #{data.y}, #{data.rotation}, #{data.state}"
   socket.send(data)
 sendThrottled = _.throttle(40, send)
 
 if socket.connect()
   window.Remote_players = remote_players = {}
   socket.on 'message', (data) ->
-    console.log "got: #{data.command}, #{data.x}, #{data.y}, #{data.rotation}, #{data.state}"
+    log "got: #{data.command}, #{data.x}, #{data.y}, #{data.rotation}, #{data.state}"
     remote_player = remote_players[data.id]
     switch data.command
       when 'new'
