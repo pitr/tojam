@@ -218,7 +218,10 @@ $ ->
 
   Crafty.scene "loading", ->
     Crafty.load ["sprite.png"], ->
-      Crafty.scene("main")
+      $('#loader h1').text('Welcome!')
+      $('#loader h2').text('Click anywhere to continue')
+      $('#loader').click ->
+        Crafty.scene("main")
 
   Crafty.scene 'main', ->
     $('#loader').hide()
