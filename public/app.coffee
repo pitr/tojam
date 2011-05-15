@@ -7,8 +7,8 @@ class State
   adult: -> @is(State.ADULT)
   old: -> @is(State.OLD)
   dead: -> @is(State.DEAD)
-  BASE_SPEED: [off, 0.4, 0.9, 1.9, 0.9, 0]
-  ANIMATION: [off, 5, 5, 5, 5, 80]
+  BASE_SPEED: [off, 0.4, 0.9, 1.9, 0.4, 0]
+  ANIMATION: [off, 6, 13, 5, 14, 80]
   NAMES: [off, "baby", "teen", "adult", "old", "dead"]
   toString: -> @NAMES[@state]
   base_speed: -> @BASE_SPEED[@state]
@@ -24,31 +24,59 @@ window.WEB_SOCKET_SWF_LOCATION = '/js/socket/lib/vendor/web-socket-js/WebSocketM
 
 socket = new io.Socket('me', port: 8080)
 
-Monster =
+window.rand   = (max) -> Math.floor(Math.random()*max*2)-max
+window.arand  = (max) -> Math.floor(Math.random()*max)
+
+window.Monster =
   all: {}
-  make: (x, y, id = _.guid()) ->
-    Monster.all[id] = Crafty.e("2D, DOM, monster, Animate, Collision")
+  makeLocal:  -> Monster.make(no, no, no, _.guid(), true)
+  makeRemote: (x, y, vx, vy, state, g) ->
+    if g of Monster.all
+      monster = Monster.all[g]
+      return if monster.is_local
+
+      monster.x = x
+      monster.y = y
+      monster.vx = vx
+      monster.vy = vy
+      monster.state = state
+    else
+      # new remote monster
+      Monster.make(x, y, state, g, false).attr(vx: vx, vy: vy)
+  make: (x, y, state, g, is_local) ->
+    Monster.all[g] = Crafty.e("2D, DOM, monster, Animate, Collision")
       .attr
-        health: 3
-        x: x
-        y: y
+        state: state or 6
+        x: x or (arand(5)+5)
+        y: y or (arand(5)+5)
         z: 3
         vx: 1
         vy: 0
         step_max: 40
         step: -1
-        id: id
-      .animate("monster_walk", 2, 2, 3)
+        g: g
+        is_local: is_local
+        kill: ->
+          @destroy()
+          delete Monster.all[@g] if @in of Monster.all
+      .animate("monster_walk", 6, 0, 7)
       .bind "enterframe", ->
         @animate('monster_walk', 10) unless @isPlaying('monster_walk')
         if --@step < 0
           @step = @step_max
-          @vx = ((Math.random() * 3)|0)-1
-          @vy = ((Math.random() * 3)|0)-1
+          @vx = rand(1)
+          @vy = rand(1)
         @x += @vx
         @y += @vy
-        # destroy if it goes out of bounds
-        @destroy() if 0 > @x > Crafty.viewport.width or 0 > @y > Crafty.viewport.height
+        sendThrottled(
+          command: 'monster'
+          g: @g
+          x: @x
+          y: @y
+          vx: @vx
+          vy: @vy
+          state: @state
+        ) if @is_local
       .collision()
       .onHit "wall_left", ->
         @x += 5
@@ -65,16 +93,24 @@ Monster =
       .onHit 'adult', (e) ->
         @vx = - @vx
         @vy = - @vy
+      .onHit 'player_local', (e) ->
+        console.log 'hit'
+        player = e[0].obj
+        player.die() unless player.state.adult()
       .onHit 'bullet', (e) ->
+        return unless @is_local
         bullet = e[0].obj
         bullet.destroy()
-        if --@health < 1
-          @destroy()
-          send(command: 'monsterDie', id: @id)
+        if --@state < 1
+          @kill()
+          send(command: 'monsterDie', g: @g) if @is_local
+          Monster.makeLocal()
         else
-          # dash to where bullet came from
-          @vx = if Math.abs(bullet.xspeed) < 1 then 0 else if bullet.xspeed > 0 then -1 else 1
-          @vy = if Math.abs(bullet.yspeed) < 1 then 0 else if bullet.yspeed > 0 then -1 else 1
+          len = Math.sqrt((bullet.xspeed * bullet.xspeed) + (bullet.yspeed * bullet.yspeed))
+          @vx = 2 * -bullet.xspeed/len
+          @vy = 2 * -bullet.yspeed/len
+          @step = @step_max * 2
+          console.log "--> to #{@vx}, #{@vy}"
 
 playerAttr = (attr) ->
   state: new State
@@ -102,31 +138,33 @@ playerAttr = (attr) ->
     if @state.dead() then @rotation = 0
     send(command: 'grow', state: @state.state) if attr.local?
     @
+  die: ->
+    @grow(State.DEAD) unless @state.dead()
 
 send = (data) ->
   _.log "send: #{data.command}, #{data.x}, #{data.y}, #{data.rotation}, #{data.state}"
   socket.send(data) if socket.connected
 sendThrottled = _.throttle(40, send)
 
-shoot = (x, y, rotation) ->
+shoot = (x, y, rotation, long) ->
   Crafty.e("2D, DOM, Color, bullet")
     .attr
       x: x
       y: y
       z: 2
-      w: 2
-      h: 2
-      age: 5
+      w: 3
+      h: if long then 3 else 16
+      age: if long then 5 else 1
       rotation: rotation
-      xspeed: 20 * Math.sin(rotation / 57.3)
-      yspeed: 20 * Math.cos(rotation / 57.3)
-    .color("brown")
+      xspeed: 16 * Math.sin(rotation / 57.3)
+      yspeed: 16 * Math.cos(rotation / 57.3)
+    .color("black")
     .bind "enterframe", ->
+      @destroy() if @age-- < 0
       @x += @xspeed
       @y -= @yspeed
       # destroy if it goes out of bounds
       @destroy() if 0 > @_x > Crafty.viewport.width or 0 > @_y > Crafty.viewport.height
-      @destroy() if @age-- < 0
 
 generateWorld = ->
   # Generate the grass along the x-axis
@@ -171,12 +209,12 @@ $ ->
     bush2:  [5,0]
     flower: [0,1]
 
-    baby:   [0,2]
-    teen:   [3,3]
-    adult:  [3,3]
-    old:    [3,3]
+    baby:   [0,3]
+    teen:   [5,3]
+    adult:  [6,3]
+    old:    [11,3]
     dead:   [4,2]
-    monster:[2,2]
+    monster:[6,0]
 
   Crafty.scene "loading", ->
     Crafty.load ["sprite.png"], ->
@@ -188,7 +226,7 @@ $ ->
 
     if socket.connect()
       remote_players = {}
-      Monster.make(13, 13)
+      Monster.makeLocal()
       socket.on 'message', (data) ->
         _.log "got: #{data.command}, #{data.x}, #{data.y}, #{data.rotation}, #{data.state}"
         remote_player = remote_players[data.id]
@@ -206,22 +244,25 @@ $ ->
                   rotation: data.rotation
                   z: 1
                 .grow(data.state)
-          when 'left'   then remote_player?.destroy()
-          when 'grow'   then remote_player?.grow(data.state)
-          when 'shoot'  then shoot(data.x, data.y, data.rotation)
+                .origin("center")
+          when 'left'       then remote_player?.destroy()
+          when 'grow'       then remote_player?.grow(data.state)
+          when 'shoot'      then shoot(data.x, data.y, data.rotation, data.state==State.TEEN)
+          when 'monster'    then Monster.makeRemote(data.x, data.y, data.vx, data.vy, data.state, data.g)
+          when 'monsterDie' then Monster.all[data.g]?.kill()
     else
       _.log("Can't connect, playing offline mode. Shitty!")
-      Monster.make(4, 6)
+      Monster.makeLocal()
 
-    window.Player = Crafty.e("2D, DOM, baby, Animate, Collision, Controls")
+    window.Player = Crafty.e("2D, DOM, baby, player_local, Animate, Collision, Controls")
       .attr playerAttr
         local: yes
         z: 2
         state: off
-      .animate("baby_walk", 0, 2, 1)
-      .animate("teen_walk", 0, 3, 2)
-      .animate("adult_walk", 3, 3, 5)
-      .animate("old_walk", 0, 3, 2)
+      .animate("baby_walk", 0, 3, 2)
+      .animate("teen_walk", 3, 3, 5)
+      .animate("adult_walk", 6, 3, 8)
+      .animate("old_walk", 9, 3, 11)
       .animate("dead_walk", 2, 2, 2)
       .origin("center")
       .bind "enterframe", (e) ->
@@ -238,18 +279,15 @@ $ ->
           @y += @vy()
           @walk()
         if @isDown("SPACE") and not @cooldown
-          switch @state.state
-            when State.TEEN
+          if @state.teen() or @state.old()
               @cooldown = true
-              $.after 500, => @cooldown = false
-              send(command: 'shoot', x: @x, y: @y, rotation: @rotation)
-              shoot(@x, @y, @rotation)
-            when State.ADULT
-              42 # kick
-            when State.OLD
-              42 # ???
+              $.after 1, 'second', => @cooldown = false
+              [x, y] = [@x+8, @y+8]
+              send(command: 'shoot', x: x, y: y, rotation: @rotation)
+              shoot(x, y, @rotation, @state.teen())
 
-      .bind("keyup", (e) -> @stop().cooldown = false)
+      .bind "keyup", (e) ->
+        @stop()
       .collision()
       .onHit "wall_left", ->
         @x += 5
@@ -264,7 +302,7 @@ $ ->
         @y += 5
         @stop()
       .onHit 'monster', ->
-        @grow(State.DEAD) unless @state.adult()
+        @die() unless @state.adult()
     send(command: 'move', x: Player.x, y: Player.y, rotation: Player.rotation, state: Player.state.state)
 
   Crafty.scene("loading")
