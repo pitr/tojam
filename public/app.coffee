@@ -1,6 +1,6 @@
 class State
   constructor: (@state = State.BABY) ->
-  next: -> @state = Math.min(++@state, State.DEAD)
+  next: (new_state) -> @state = new_state or Math.min(++@state, State.DEAD)
   is: (state) -> @state is state
   baby: -> @is(State.BABY)
   teen: -> @is(State.TEEN)
@@ -24,20 +24,58 @@ io.setPath('/js/socket/')
 
 socket = new io.Socket('me', port: 8080)
 
+playerAttr = (attr) ->
+  state: new State
+  x: attr.x or (Crafty.viewport.width / 2)
+  y: attr.y or (Crafty.viewport.height / 2)
+  z: attr.z or 1
+  xspeed: 0
+  yspeed: 0
+  vx: -> Math.sin(@rotation * Math.PI / 180) * @state.base_speed()
+  vy: -> Math.cos(@rotation * Math.PI / 180) * @state.base_speed()
+  walk: ->
+    animation = "#{@state}_walk"
+    @stop().animate(animation, @state.animation()) unless @isPlaying(animation)
+    send(command: 'move', x: @x, y: @y, rotation: @rotation) if attr.local?
+  cooldown: false
+  rotation: attr.rotation or 0
+  grow_timer: if attr.local? then $.every(20, "seconds", ->
+    clearTimeout(Player.grow_timer) if Player.grow().state.dead()
+  )
+  grow: (new_state) ->
+    old_state = @state.toString()
+    @state.next(new_state)
+    @removeComponent(old_state) if @has(old_state)
+    @addComponent(@state.toString())
+    if @state.dead() then @rotation = 0
+    send(command: 'grow', state: @state.state) if attr.local?
+    @
+
+send = (data) ->
+  console.log "send: #{data.command}, #{data.x}, #{data.y}, #{data.rotation}, #{data.state}"
+  socket.send(data)
+
 if socket.connect()
-  remote_players = {}
+  window.Remote_players = remote_players = {}
   socket.on 'message', (data) ->
-    switch data.hello
-      when 'join'
-        remote_players[data.id] = Crafty.e("2D, DOM, player")
-          .attr(x: data.x, y: data.y, rotation: data.rotation, z: 1)
-      when 'left'   then remote_players[data.id].destroy()
-      when 'grow'   then remote_players[data.id].grow()
+    console.log "got: #{data.command}, #{data.x}, #{data.y}, #{data.rotation}, #{data.state}"
+    remote_player = remote_players[data.id]
+    switch data.command
+      when 'new'
+        remote_player?.destroy()
+        remote_players[data.id] = Crafty.e("2D, DOM")
+          .attr playerAttr
+            x: data.x
+            y: data.y
+            rotation: data.rotation
+            z: 1
+          .grow(data.state)
+      when 'left'   then remote_player?.destroy()
+      when 'grow'   then remote_player?.grow(data.state)
       when 'move'
-        remote_player = remote_players[data.id]
-        remote_player.x = data.x
-        remote_player.y = data.y
-        remote_player.rotation = data.rotation
+        remote_player?.x = data.x
+        remote_player?.y = data.y
+        remote_player?.rotation = data.rotation
       when 'shoot'  then shoot(data.x, data.y, data.rotation)
 else
   alert("Can't connect, playing offline mode")
@@ -121,26 +159,10 @@ $ ->
     generateWorld()
 
     window.Player = Crafty.e("2D, DOM, baby, Animate, Collision, Controls")
-      .attr
-        state: new State
-        x: Crafty.viewport.width / 2
-        y: Crafty.viewport.height / 2
+      .attr playerAttr
+        local: yes
         z: 2
-        xspeed: 0
-        yspeed: 0
-        vx: -> Math.sin(@rotation * Math.PI / 180) * @state.base_speed()
-        vy: -> Math.cos(@rotation * Math.PI / 180) * @state.base_speed()
-        walk: ->
-          animation = "#{@state}_walk"
-          @stop().animate(animation, @state.animation()) unless @isPlaying(animation)
-        cooldown: false
-        grow_timer: $.every(20, "seconds", -> Player.grow())
-        grow: ->
-          old_state = @state.toString()
-          @state.next()
-          @removeComponent(old_state) if @has(old_state)
-          @addComponent(@state.toString())
-          if @state.dead() then @rotation = 0
+        state: off
       .animate("baby_walk", 0, 2, 1)
       .animate("teen_walk", 0, 3, 2)
       .animate("adult_walk", 3, 3, 5)
@@ -165,13 +187,12 @@ $ ->
             when State.TEEN
               @cooldown = true
               $.after 500, => @cooldown = false
+              send(command: 'shoot', x: @x, y: @y, rotation: @rotation)
               shoot(@x, @y, @rotation)
             when State.ADULT
-              # kick
-              42
+              42 # kick
             when State.OLD
-              # ???
-              42
+              42 # ???
 
       .bind("keyup", (e) -> @stop().cooldown = false)
       .collision()
@@ -183,5 +204,6 @@ $ ->
         @stop()
       .onHit "wall_top", ->
         @stop()
+    send(command: 'new', x: Player.x, y: Player.y, rotation: Player.rotation, state: Player.state.state)
 
   Crafty.scene("loading")
