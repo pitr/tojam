@@ -32,7 +32,7 @@ Monster =
         health: 3
         x: x
         y: y
-        z: 1
+        z: 3
         vx: 1
         vy: 0
         step_max: 40
