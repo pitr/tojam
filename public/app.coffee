@@ -1,6 +1,3 @@
-window.DEBUG = off
-window.log = (msg) -> console.log(msg) if DEBUG
-
 class State
   constructor: (@state = State.BABY) ->
   next: (new_state) -> @state = new_state or Math.min(++@state, State.DEAD)

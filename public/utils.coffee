@@ -1,3 +1,6 @@
+window.DEBUG = off
+window.log = (msg) -> console.log(msg) if DEBUG
+
 window._ = {}
 
 _.throttle = (ms, fn) ->
