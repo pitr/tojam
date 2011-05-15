@@ -3,7 +3,7 @@ io = require 'socket.io'
 VALID_COMMANDS = ["new", "left", "grow", "move", "shoot"]
 
 app = connect.createServer(
-  connect.logger(),
+  # connect.logger(),
   connect.static("#{__dirname}/public")
 )
 
