@@ -54,7 +54,7 @@ class Block
     sounds[c]
       .play(volume)
       .echo(volume)
-    log("--== #{note.name} at #{volume} ==--")
+    _.log("--== #{note.name} at #{volume} ==--")
   move: ->
     switch @state
       when RIGHT
@@ -107,7 +107,7 @@ run = ->
     for block2 in blocks
       if block1 isnt block2 and block1.id is block2.id
         block1.rotate()
-        log("collision: #{block1} grid: #{block1.id}")
+        _.log("collision: #{block1} grid: #{block1.id}")
 
 # setup the soundManager object
 soundManager.debugMode = false
@@ -120,8 +120,8 @@ soundManager.onready ->
     id = Number(_i)
     url = "mp3s/piccata/picat00#{ id }.mp3"
     note.sound = soundManager.createSound(id: note.name,  url: url)
-  start()
+  # start()
 
-soundManager.ontimeout -> log('No music, shitty!')
+soundManager.ontimeout -> _.log('No music, shitty!')
 
 42
