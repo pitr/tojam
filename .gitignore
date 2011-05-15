@@ -2,3 +2,5 @@ node_modules
 *~*
 public/app.js
 public/utils.js
+public/music.js
+tmp
