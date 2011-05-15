@@ -1,6 +1,9 @@
 connect = require 'connect'
 io = require 'socket.io'
-VALID_COMMANDS = ["new", "left", "grow", "move", "shoot"]
+_ = require('./public/utils.js')._
+VALID_COMMANDS = ["left", "grow", "move", "shoot", "monster", "monsterDie"]
+
+p2m = {}
 
 app = connect.createServer(
   # connect.logger(),
@@ -11,8 +14,16 @@ socket = io.listen(app)
 app.listen(8080)
 
 socket.on 'connection', (client) ->
+  client.on 'connect', ->
+
   client.on 'message', (data) ->
     if data?.command in VALID_COMMANDS
+      switch data.command
+        when "monsterDie" then delete p2m[client.sessionId]
+        when "monster"
+          if client.sessionId in p2m
+            p2m[client.sessionId] = data.id
+
       new_data = { id: client.sessionId, command: data.command }
       new_data.x        = parseFloat(data.x)      if parseFloat(data.x)
       new_data.y        = parseFloat(data.y)      if parseFloat(data.y)
@@ -22,6 +33,7 @@ socket.on 'connection', (client) ->
       client.broadcast new_data
 
   client.on 'disconnect', ->
+    delete p2m[client.sessionId]
     client.broadcast(id: client.sessionId, command: 'left')
 
 42

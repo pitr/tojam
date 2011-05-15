@@ -24,6 +24,58 @@ window.WEB_SOCKET_SWF_LOCATION = '/js/socket/lib/vendor/web-socket-js/WebSocketM
 
 socket = new io.Socket('me', port: 8080)
 
+Monster =
+  all: {}
+  make: (x, y, id = _.guid()) ->
+    Monster.all[id] = Crafty.e("2D, DOM, monster, Animate, Collision")
+      .attr
+        health: 3
+        x: x
+        y: y
+        z: 1
+        vx: 1
+        vy: 0
+        step_max: 40
+        step: -1
+        id: id
+      .animate("monster_walk", 2, 2, 3)
+      .bind "enterframe", ->
+        @animate('monster_walk', 10) unless @isPlaying('monster_walk')
+        if --@step < 0
+          @step = @step_max
+          @vx = ((Math.random() * 3)|0)-1
+          @vy = ((Math.random() * 3)|0)-1
+        @x += @vx
+        @y += @vy
+        # destroy if it goes out of bounds
+        @destroy() if 0 > @x > Crafty.viewport.width or 0 > @y > Crafty.viewport.height
+      .collision()
+      .onHit "wall_left", ->
+        @x += 5
+        @vx = 1
+      .onHit "wall_right", ->
+        @vx = -1
+        @x -= 5
+      .onHit "wall_bottom", ->
+        @vy = -1
+        @y -= 5
+      .onHit "wall_top", ->
+        @vy = 1
+        @y += 5
+      .onHit 'adult', (e) ->
+        @vx = - @vx
+        @vy = - @vy
+      .onHit 'bullet', (e) ->
+        bullet = e[0].obj
+        bullet.destroy()
+        if --@health < 1
+          @destroy()
+          send(command: 'monsterDie', id: @id)
+        else
+          # dash to where bullet came from
+          @vx = if Math.abs(bullet.xspeed) < 1 then 0 else if bullet.xspeed > 0 then -1 else 1
+          @vy = if Math.abs(bullet.yspeed) < 1 then 0 else if bullet.yspeed > 0 then -1 else 1
+
 playerAttr = (attr) ->
   state: new State
   x: attr.x or (Crafty.viewport.width / 2)
@@ -36,7 +88,7 @@ playerAttr = (attr) ->
   walk: ->
     animation = "#{@state}_walk"
     @stop().animate(animation, @state.animation()) unless @isPlaying(animation)
-    sendThrottled(command: 'move', x: @x, y: @y, rotation: @rotation) if attr.local?
+    sendThrottled(command: 'move', x: @x, y: @y, rotation: @rotation, state: @state.state) if attr.local?
   cooldown: false
   rotation: attr.rotation or 0
   grow_timer: if attr.local? then $.every(20, "seconds", ->
@@ -52,34 +104,9 @@ playerAttr = (attr) ->
     @
 
 send = (data) ->
-  log "send: #{data.command}, #{data.x}, #{data.y}, #{data.rotation}, #{data.state}"
-  socket.send(data)
+  _.log "send: #{data.command}, #{data.x}, #{data.y}, #{data.rotation}, #{data.state}"
+  socket.send(data) if socket.connected
 sendThrottled = _.throttle(40, send)
-
-if socket.connect()
-  window.Remote_players = remote_players = {}
-  socket.on 'message', (data) ->
-    log "got: #{data.command}, #{data.x}, #{data.y}, #{data.rotation}, #{data.state}"
-    remote_player = remote_players[data.id]
-    switch data.command
-      when 'new'
-        remote_player?.destroy()
-        remote_players[data.id] = Crafty.e("2D, DOM")
-          .attr playerAttr
-            x: data.x
-            y: data.y
-            rotation: data.rotation
-            z: 1
-          .grow(data.state)
-      when 'left'   then remote_player?.destroy()
-      when 'grow'   then remote_player?.grow(data.state)
-      when 'move'
-        remote_player?.x = data.x
-        remote_player?.y = data.y
-        remote_player?.rotation = data.rotation
-      when 'shoot'  then shoot(data.x, data.y, data.rotation)
-else
-  alert("Can't connect, playing offline mode")
 
 shoot = (x, y, rotation) ->
   Crafty.e("2D, DOM, Color, bullet")
@@ -140,16 +167,16 @@ $ ->
     grass2: [1,0]
     grass3: [2,0]
     grass4: [3,0]
-    bush1:  [0,2]
-    bush2:  [1,2]
+    bush1:  [4,0]
+    bush2:  [5,0]
     flower: [0,1]
 
     baby:   [0,2]
     teen:   [3,3]
     adult:  [3,3]
     old:    [3,3]
-    dead:   [0,1]
-    monster:[0,2]
+    dead:   [4,2]
+    monster:[2,2]
 
   Crafty.scene "loading", ->
     Crafty.load ["sprite.png"], ->
@@ -158,6 +185,33 @@ $ ->
   Crafty.scene 'main', ->
     $('#loader').hide()
     generateWorld()
+
+    if socket.connect()
+      remote_players = {}
+      Monster.make(13, 13)
+      socket.on 'message', (data) ->
+        _.log "got: #{data.command}, #{data.x}, #{data.y}, #{data.rotation}, #{data.state}"
+        remote_player = remote_players[data.id]
+        switch data.command
+          when 'move'
+            if remote_player
+              remote_player.x = data.x
+              remote_player.y = data.y
+              remote_player.rotation = data.rotation
+            else
+              remote_players[data.id] = Crafty.e("2D, DOM")
+                .attr playerAttr
+                  x: data.x
+                  y: data.y
+                  rotation: data.rotation
+                  z: 1
+                .grow(data.state)
+          when 'left'   then remote_player?.destroy()
+          when 'grow'   then remote_player?.grow(data.state)
+          when 'shoot'  then shoot(data.x, data.y, data.rotation)
+    else
+      _.log("Can't connect, playing offline mode. Shitty!")
+      Monster.make(4, 6)
 
     window.Player = Crafty.e("2D, DOM, baby, Animate, Collision, Controls")
       .attr playerAttr
@@ -168,7 +222,7 @@ $ ->
       .animate("teen_walk", 0, 3, 2)
       .animate("adult_walk", 3, 3, 5)
       .animate("old_walk", 0, 3, 2)
-      .animate("dead_walk", 0, 1, 3)
+      .animate("dead_walk", 2, 2, 2)
       .origin("center")
       .bind "enterframe", (e) ->
         if @isDown("LEFT_ARROW")
@@ -198,13 +252,19 @@ $ ->
       .bind("keyup", (e) -> @stop().cooldown = false)
       .collision()
       .onHit "wall_left", ->
+        @x += 5
         @stop()
       .onHit "wall_right", ->
+        @x -= 5
         @stop()
       .onHit "wall_bottom", ->
+        @y -= 5
         @stop()
       .onHit "wall_top", ->
+        @y += 5
         @stop()
-    send(command: 'new', x: Player.x, y: Player.y, rotation: Player.rotation, state: Player.state.state)
+      .onHit 'monster', ->
+        @grow(State.DEAD) unless @state.adult()
+    send(command: 'move', x: Player.x, y: Player.y, rotation: Player.rotation, state: Player.state.state)
 
   Crafty.scene("loading")
