@@ -11,7 +11,7 @@ app = connect.createServer(
 )
 
 socket = io.listen(app)
-app.listen(8080)
+app.listen(80)
 
 socket.on 'connection', (client) ->
   client.on 'connect', ->

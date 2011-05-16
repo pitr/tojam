@@ -22,7 +22,7 @@ State.DEAD   = 5
 
 window.WEB_SOCKET_SWF_LOCATION = '/js/socket/lib/vendor/web-socket-js/WebSocketMain.swf'
 
-socket = new io.Socket('me', port: 8080)
+socket = new io.Socket('pitr.no.de', port: 80)
 
 window.rand   = (max) -> Math.floor(Math.random()*max*2)-max
 window.arand  = (max) -> Math.floor(Math.random()*max)
