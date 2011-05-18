@@ -127,7 +127,7 @@ playerAttr = (attr) ->
     sendThrottled(command: 'move', x: @x, y: @y, rotation: @rotation, state: @state.state) if attr.local?
   cooldown: false
   rotation: attr.rotation or 0
-  grow_timer: if attr.local? then $.every(20, "seconds", ->
+  grow_timer: if attr.local? then $.every(60, "seconds", ->
     clearTimeout(Player.grow_timer) if Player.grow().state.dead()
   )
   grow: (new_state) ->
@@ -218,8 +218,8 @@ $ ->
 
   Crafty.scene "loading", ->
     Crafty.load ["sprite.png"], ->
-      $('#loader h1').text('Welcome!')
-      $('#loader h2').text('Click anywhere to continue')
+      $('#loader h1').text('Click anywhere!!!')
+      $('#loader h2').text('Um, use arrow keys!')
       $('#loader').click ->
         Crafty.scene("main")
 
