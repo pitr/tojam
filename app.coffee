@@ -22,7 +22,7 @@ State.DEAD   = 5
 
 window.WEB_SOCKET_SWF_LOCATION = '/js/socket/lib/vendor/web-socket-js/WebSocketMain.swf'
 
-socket = new io.Socket('me', port: 8080)
+socket = new io?.Socket('me', port: 8080)
 
 window.rand   = (max) -> Math.floor(Math.random()*max*2)-max
 window.arand  = (max) -> Math.floor(Math.random()*max)
@@ -94,7 +94,6 @@ window.Monster =
         @vx = - @vx
         @vy = - @vy
       .onHit 'player_local', (e) ->
-        console.log 'hit'
         player = e[0].obj
         player.die() unless player.state.adult()
       .onHit 'bullet', (e) ->
@@ -110,7 +109,6 @@ window.Monster =
           @vx = 2 * -bullet.xspeed/len
           @vy = 2 * -bullet.yspeed/len
           @step = @step_max * 2
-          console.log "--> to #{@vx}, #{@vy}"
 
 playerAttr = (attr) ->
   state: new State
@@ -143,7 +141,7 @@ playerAttr = (attr) ->
 
 send = (data) ->
   _.log "send: #{data.command}, #{data.x}, #{data.y}, #{data.rotation}, #{data.state}"
-  socket.send(data) if socket.connected
+  socket.send(data) if socket?.connected
 sendThrottled = _.throttle(40, send)
 
 shoot = (x, y, rotation, long) ->
@@ -227,7 +225,7 @@ $ ->
     $('#loader').hide()
     generateWorld()
 
-    if socket.connect()
+    if socket?.connect()
       remote_players = {}
       Monster.makeLocal()
       socket.on 'message', (data) ->
