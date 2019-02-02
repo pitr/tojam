@@ -3,7 +3,7 @@
   var __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
   State = (function() {
     function State(state) {
-      this.state = state != null ? state : State.BABY;
+      this.state = state != null ? state : State.TEEN;
     }
     State.prototype.next = function(new_state) {
       return this.state = new_state || Math.min(++this.state, State.DEAD);
@@ -335,6 +335,7 @@
       var remote_players;
       $('#loader').hide();
       generateWorld();
+      socket = null; // offline mode only on github pages
       if (socket != null ? socket.connect() : void 0) {
         remote_players = {};
         Monster.makeLocal();
