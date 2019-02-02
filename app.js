@@ -3,7 +3,7 @@
   var __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
   State = (function() {
     function State(state) {
-      this.state = state != null ? state : State.TEEN;
+      this.state = state != null ? state : State.BABY;
     }
     State.prototype.next = function(new_state) {
       return this.state = new_state || Math.min(++this.state, State.DEAD);
